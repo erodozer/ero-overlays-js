@@ -1,0 +1,270 @@
+<html>
+
+<head>
+    <style>
+        :root {
+            --fontSize: 16px;
+            --fontFamily: 'FOT-RodinWanpaku Pro', serif;
+            --panelHeaderColor: #3ec120;
+            --broadcasterHeaderColor: #d55999;
+            --messageBackgroundColor: #fdf9e0;
+            --shadowColor: rgba(28,28,28,0.15);
+            --messageFontColor: #7f7051;
+            --stickAround: 8s;
+        }
+
+        html,
+        body {
+            padding: 0;
+            margin: 0;
+
+            font-family: var(--fontFamily);
+            font-weight: bold;
+        }
+
+        #chatbox {
+            background: transparent;
+            display: flex;
+            flex-direction: column;
+            width: 100vw;
+            height: 100vh;
+            padding: 0;
+            margin: 0;
+            border-radius: 10px;
+            overflow: hidden;
+            justify-content: flex-end;
+            padding: 32px;
+            box-sizing: border-box;
+        }
+
+        .message {
+            position: relative;
+            display: block;
+            margin-top: 48px;
+            width: 80%;
+            align-self: flex-end;
+        }
+
+        @keyframes new-message {
+            from {
+                opacity: 0;
+                transform: scale(0);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        @keyframes expire-message {
+            from {
+                opacity: 1;
+                transform: translateY(0px);
+            }
+
+            to {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+        }
+
+        .message {
+            animation: new-message .2s ease-out 0s, expire-message .15s ease-out var(--stickAround);
+            animation-fill-mode: forwards;
+            transform-origin: bottom right;
+        }
+
+        .message .username {
+            position: absolute;
+            display: block;
+            min-width: 64px;
+
+            font-size: var(--fontSize);
+            border-radius: calc(2 * var(--fontSize));
+            color: white;
+            transform: rotate(4deg) translate(3px, -12px);
+            padding: var(--fontSize) 24px;
+            text-align: center;
+            font-weight: bold;
+            box-sizing: border-box;
+            top: calc(-1 * var(--fontSize));
+            z-index: 1;
+        }
+
+        /* .message[data-important="false"] .username */
+        .message .username {
+            right: 0;
+
+            transform: rotate(3deg) translate(5px, calc(-1 * var(--fontSize)));
+
+            background: var(--panelHeaderColor);
+        }
+
+        .message[data-important="true"] .username {
+
+            /*
+            left: 0;
+            transform: rotate(-3deg) translate(-5px, -{{fontSize}}px);
+            */
+            background: var(--broadcasterHeaderColor);
+        }
+
+        /*
+            .message[data-important="true"] .text {
+            text-align: left;
+            float: left;
+            }
+
+            .message[data-important="true"] {
+            align-self: flex-start;
+            }
+            */
+
+
+        .message .badge {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            display: block;
+            float: right;
+            text-align: right;
+            transform: translate(16px, 24px);
+            word-wrap: nowrap;
+        }
+
+        .message .badge>img {
+            margin-right: 8px;
+        }
+
+        .message .text {
+            position: relative;
+
+            font-size: var(--fontSize);
+            display: inline-block;
+
+            background: var(--messageBackgroundColor);
+
+            padding: 16px;
+            padding-top: calc(var(--fontSize) + 16px);
+            margin: 0;
+            border-radius: 12px;
+
+            color: var(--messageFontColor);
+            text-align: right;
+            float: right;
+            min-width: 120px;
+
+            box-shadow: 8px 8px 0px var(--shadowColor);
+        }
+
+        .message img {
+            height: 1.4em;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="chatbox">
+
+    </div>
+    <script>
+        class ChatBox {
+            constructor(mount) {
+                this.mount = mount;
+            }
+
+            get muteChatEnabled() {
+                return localStorage.getItem('chat.twitchListen') === 'true';
+            }
+
+            insertMessage(msg) {
+                const e = this._renderMessage(msg);
+
+                if (msg.isBroadcaster && this.muteChatEnabled) {
+                    return;
+                }
+
+                // class property
+                const record = {
+                    msg,
+                    element: e,
+                };
+
+                e.addEventListener('animationend', ({ animationName }) => {
+                    if (animationName !== 'expire-message') return;
+
+                    e.remove();
+                });
+
+                this.mount.appendChild(e);
+
+                while (this.mount.childElementCount > 10) {
+                    this.mount.firstElementChild.remove();
+                }
+
+                console.log(record);
+            }
+
+            deleteMessage(id) {
+                this.mount.querySelectorAll(`[data-msgid=${msg.msgId}]`).forEach(e => e.remove());
+            }
+
+            deleteUser(id) {
+                this.mount.querySelectorAll(`[data-userid=${msg.userId}]`).forEach(e => e.remove());
+            }
+
+            _renderMessage(msg) {
+                const e = document.createElement('div');
+                e.classList.add('message');
+                e.setAttribute('data-important', `${msg.isBroadcaster || msg.isModerator}`);
+                e.setAttribute('data-userid', msg.userId);
+                e.setAttribute('data-msgid', msg.msgId);
+                e.innerHTML = `
+                        <span class="username">
+                                ${msg.displayName}
+                            </span>
+                            <p class="text">
+                                ${msg.renderedText}
+                                <br/>
+                            </p>
+                        </div>
+                    `;
+                return e;
+            }
+
+            render() {
+                const top = this.mount.scrollTop;
+            }
+        }
+
+        const app = new ChatBox(document.getElementById("chatbox"));
+
+        window.addEventListener('storage', ({ key, newValue }) => {
+            if (key !== 'chatbox.latest') {
+                return;
+            }
+
+            const { 
+                head: {
+                    type
+                },
+                body 
+            } = JSON.parse(newValue);
+
+            switch (type) {
+                case 'message':
+                    app.insertMessage(body);
+                    break;
+                case 'deleteMessage':
+                    app.deleteMessage(body.msgId);
+                    break;
+                case 'deleteUser':
+                    app.deleteUser(body.userId);
+                    break;
+            }
+        });
+    </script>
+</body>
+
+</html>
