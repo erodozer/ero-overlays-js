@@ -9,15 +9,25 @@
             :root {
                 --button-primary: #284cb8;
                 --button-primary-active: #365cc0;
+                --button-danger: rgb(228, 70, 70);
                 --button-secondary: #3c404b;
                 --input-field: #3c404b;
                 --section: #2b2e38;
                 --background: #1f212a;
             }
 
+            * {
+                box-sizing: border-box;
+            }
+
+            hr {
+                border-color: var(--background);
+                border-width: 2px;
+            }
+
             body {
                 font-size: 14px;
-                max-width: 500px;
+                width: 100%;
                 margin: 0px;
                 padding: 0px;
                 background: var(--background);
@@ -38,6 +48,12 @@
                 border: 4px solid var(--background);  /* creates padding around scroll thumb */
                 border-bottom: 0px solid transparent;
             }
+
+            button {
+                display: inline-flex;
+                justify-content: center;
+                align-items: center;
+            }
             
             .button-primary {
                 background-color: var(--button-primary);
@@ -51,6 +67,18 @@
                 background-color: var(--button-primary-active);
             }
 
+            .button-danger {
+                background-color: var(--button-danger);
+                border: 0px solid transparent;
+                font-weight: normal;
+            }
+
+            .button-danger:hover,
+            .button-danger:disabled:hover,
+            .button-danger:focus {
+                background-color: var(--button-danger);
+            }
+
             .button-outline {
                 background-color: var(--button-secondary) !important;
                 border: 0px solid transparent !important;
@@ -61,7 +89,7 @@
             .badge {
                 font-size: 1em;
                 font-weight: normal;
-                color: lightgreen;
+                color: lightcoral;
                 border: 0px solid transparent;
                 border-radius: 16px;
                 box-sizing: border-box;
@@ -69,8 +97,8 @@
                 display: inline-block;
             }
 
-            .badge.disconnected {
-                color: lightcoral;
+            .badge.connected {
+                color: lightgreen;
             }
 
             input[type] {
@@ -128,84 +156,276 @@
                 border-radius: 4px 4px 0 4px;
                 z-index: -1;
             }
+
+            .input-field {
+                display: flex;
+                flex-direction: row;
+                gap: 16px;
+                margin-bottom: 16px;
+                align-items: center;
+            }
+
+            .input-field > * {
+                margin: 0;
+            }
+
+            .fill {
+                flex-grow: 1;
+                white-space: nowrap;
+            }
+
+            textarea {
+                background: var(--background);
+                color: rgba(255,255,255,170);
+                font-family: monospace;
+                padding: 12px;
+                border-radius: 4px;
+                padding-left: 18px;
+                overflow-x: auto;
+            }
+
+            details {
+                border-radius: 2px;
+                border: 2px solid var(--background);
+                margin-bottom: 8px;
+                display: block;
+            }
+
+            details summary {
+                background-color: var(--background);
+                padding: 8px;
+            }
+
+            details > div {
+                padding: 8px;
+            }
+
+            details[open] summary {
+                margin-bottom: 8px;
+            }
+
         </style>
 
-        <!-- twitch controls -->
-        <script>
-            const bus = window.mitt();
+        <script type="importmap">
+            {
+                "imports": {
+                    "vue": "https://unpkg.com/vue@3/dist/vue.esm-browser.js"
+                }
+            }
         </script>
-    </head>
-    <body>
-        <section id="twitch">
-            <div class="title">
-                Twitch Channel
-                <span id="twitch_connection" class="badge disconnected float-right">disconnected</span>
-            </div>
-            <form>
-                <fieldset>
-                    <input type="text" id="twitch_channel">
-                    <button type="submit" id="twitch_reconnect" class="button-primary">Reconnect</button>
-                    <button type="submit" id="twitch_disconnect" class="button-outline float-right">Disconnect</button>
-                </fieldset>
-            </form>
-            <script>
-                function getMessageHTML(message, { emotes }) {
-                    if (!emotes) return message;
+        
+        <!-- twitch controls -->
+        <script type="module">
+            import { createApp, ref, reactive, watch, computed, watchEffect, onMounted } from 'vue';
+            
+            const bus = window.mitt();
 
-                    // store all emote keywords
-                    // ! you have to first scan through 
-                    // the message string and replace later
-                    const stringReplacements = [];
+            let extendedEmotes = [];
 
-                    // iterate of emotes to access ids and positions
-                    Object.entries(emotes).forEach(([id, positions]) => {
-                        // use only the first position to find out the emote key word
-                        const position = positions[0];
-                        const [start, end] = position.split("-");
-                        const stringToReplace = message.substring(
-                            parseInt(start, 10),
-                            parseInt(end, 10) + 1
-                        );
+            bus.on('twitch.joinChannel', (msg) => {
+                get7tvEmotes(msg.channelId);
 
-                        stringReplacements.push({
-                            stringToReplace: stringToReplace,
-                            replacement: `<img src="https://static-cdn.jtvnw.net/emoticons/v1/${id}/3.0">`,
+                
+                twitch(`channels/followers?broadcaster_id=${msg.channelId}&first=1`)
+                    .then((res) => {
+                        if (res.data.total == 0) {
+                            return;
+                        }
+
+                        const follower = res.data[0];
+
+                        bus.on('twitch.follow', {
+                            userId: follower.user_id,
+                            userName: follower.user_name,
+                            followedAt: follower.followed_at
                         });
-                    });
+                    })
+                /* API does not return latest subscription or any way to determine ordering
+                twitch(`subscriptions?broadcaster_id=${msg.channelId}&first=1&direction=asc`)
+                    .then((res) => {
+                        if (res.data.total == 0) {
+                            return;
+                        }
 
-                    // generate HTML and replace all emote keywords with image elements
-                    const messageHTML = stringReplacements.reduce(
-                        (acc, { stringToReplace, replacement }) => {
-                            // obs browser doesn't seam to know about replaceAll
-                            return acc.split(stringToReplace).join(replacement);
-                        },
-                        message
+                        bus.on('twitch.subscribe', {
+                            userId: res.data[0].user_id,
+                            userName: res.data[0].user_name,
+                        });
+                    })
+                */
+            });
+
+            async function get7tvEmotes(channelId) {
+                const req = await fetch(`https://7tv.io/v3/users/twitch/${channelId}`);
+                const body = await req.json();
+
+                const emotes = body?.emote_set?.emotes || [];
+
+                extendedEmotes = emotes;
+            }
+
+
+            /* function for formatting chat messages to include twitchtv emotes
+             *   lifted from streamelements, extended to support 7tv emote injection
+             */
+            function getMessageHTML(message, { emotes }) {
+                // store all emote keywords
+                // ! you have to first scan through 
+                // the message string and replace later
+                const stringReplacements = [];
+
+                // iterate of emotes to access ids and positions
+                Object.entries(emotes || {}).forEach(([id, positions]) => {
+                    // use only the first position to find out the emote key word
+                    const position = positions[0];
+                    const [start, end] = position.split("-");
+                    const stringToReplace = message.substring(
+                        parseInt(start, 10),
+                        parseInt(end, 10) + 1
                     );
 
-                    return messageHTML;
+                    stringReplacements.push({
+                        stringToReplace: stringToReplace,
+                        replacement: `<img src="https://static-cdn.jtvnw.net/emoticons/v1/${id}/3.0">`,
+                    });
+                });
+
+
+                // generate HTML and replace all emote keywords with image elements
+                const messageHTML = stringReplacements.reduce(
+                    (acc, { stringToReplace, replacement }) => {
+                        // obs browser doesn't seam to know about replaceAll
+                        return acc.split(stringToReplace).join(replacement);
+                    },
+                    message
+                );
+
+                return extendedEmotes.reduce(
+                    (acc, emote) => {
+                        const {
+                            name,
+                            data: {
+                                host: {
+                                    url,
+                                    files,
+                                },
+                            },
+                        } = emote;
+                        const image = files.find((f) => f.static_name.includes('2x') && f.format === 'WEBP');
+
+                        if (!image) {
+                            return acc;
+                        }
+
+                        return acc.replaceAll(
+                            name,
+                            `<img src="https:${url}/${image.name}" height="${image.height}">`,
+                        );
+                    },
+                    messageHTML
+                );
+            }
+
+            function storedRef(storageKey, defaultVal = '', json = false) {
+                let record = localStorage.getItem(storageKey) ?? defaultVal;
+                let v;
+                if (json) {
+                    try {
+                        record = JSON.parse(record);
+                        const typeMatch = Object.getPrototypeOf(record) === Object.getPrototypeOf(defaultVal);
+                        if (!typeMatch) {
+                            record = defaultVal;
+                        }
+                    } catch {
+                        record = defaultVal;
+                    }
+                    v = ref(record)
+                        
+                    watch(
+                        v,
+                        (update) => {
+                            const data = JSON.stringify(update)
+                            localStorage.setItem(storageKey, data);
+                            console.log(`${storageKey} updated ${data}`);
+                        },
+                        { deep: true }
+                    );
+                } else {
+                    v = ref(record);
+                    
+                    watchEffect(() => {
+                        localStorage.setItem(storageKey, v.value);
+                        console.log(`${storageKey} updated ${v.value}`);
+                    });
                 }
 
-                addEventListener("load", () => {
-                    const section = document.querySelector("#twitch");
-                    
-                    let client;
-                    function closeClient() {
-                        if (client) {
-                            client.disconnect();
-                        }
+                return v;
+            }
 
-                        const badge = section.querySelector("#twitch_connection");
-                            badge.textContent = `disconnected`;
-                            badge.classList.add('disconnected');
+            function twitch(command) {
+                return fetch(
+                    `https://api.twitch.tv/helix/${command}`, 
+                    {
+                        method: 'GET',
+                        headers: {
+                            Authorization: `Bearer ${localStorage.getItem('twitch.token')}`,
+                            'Client-Id': localStorage.getItem('twitch.clientId'),
+                        },
                     }
+                ).then(r => r.json());
+            }
 
-                    function loadClient(channel) {
-                        if (client) {
-                            client.disconnect();
-                        }
+            createApp({
+                setup() {
+                    // permissions required for token
+                    // chat:read:message channel:read:subscriptions moderator:read:followers
+                    const connected = ref(false)
+                    const channel = storedRef("twitch.channel", 'erodozer');
+                    const botUsername = storedRef("twitch.botUsername", 'erodozer');
+                    const token = storedRef("twitch.token");
+                    const refreshToken = storedRef("twitch.refreshToken");
+                    const clientId = storedRef("twitch.clientId");
+                    const clientSecret = storedRef("twitch.clientSecret");
+                    const channelId = ref('0');
+                    const connectedChannel = ref('');
+                    
+                    let client = null;
 
+                    async function connectToTwitch() {
+                        const ch = channel.value;
                         client = new tmi.Client({
-                            channels: [channel]
+                            channels: [ch],
+                            identity: {
+                                username: botUsername.value,
+                                password: async () => {
+                                    if (!token.value) {
+                                        const formData = new URLSearchParams();
+                                        formData.append('grant_type', 'refresh_token');
+                                        formData.append('client_id', clientId.value);
+                                        formData.append('client_secret', clientSecret.value);
+                                        formData.append('refresh_token', refreshToken.value);
+                                        const response = await fetch('https://id.twitch.tv/oauth2/token',
+                                            {
+                                                method: 'post',
+                                                headers: {
+                                                    'Content-Type': 'application/x-www-form-urlencoded',
+                                                },
+                                                body: formData,
+                                            }
+                                        )
+                                        const {
+                                            'access_token': newAccessToken,
+                                            'refresh_token': newRefreshToken,
+                                        } = await response.json();
+
+                                        token.value = newAccessToken;
+                                        refreshToken.value = newRefreshToken;
+                                        return `oauth:${token.value}`;
+                                    }
+
+                                    return `oauth:${token.value}`;
+                                },
+                            }
                         });
 
                         console.log('beginning connection to twitch chat')
@@ -214,26 +434,49 @@
                         client.on('connected', () => {
                             console.log('client is connected');
 
-                            const badge = section.querySelector("#twitch_connection");
-                            badge.textContent = `connected: ${channel}`;
-                            badge.classList.remove('disconnected');
+                            connectedChannel.value = ch;
+                            connected.value = true;
+                            localStorage.setItem("twitch.channel", channel.value);
                         });
 
+                        client.on('roomstate', (_, tags) => {
+                            channelId.value = tags['room-id'];
+
+                            bus.emit('twitch.joinChannel', {
+                                channel: ch,
+                                channelId: tags['room-id'],
+                            });
+                        });
+
+                        //#region twitch chat
                         client.on('chat', (channel, tags, message, self) => {
                             // ignore commands
                             if (['!', '/'].includes(message[0])) {
                                 return;
                             }
 
+                            const {
+                                "user-id": userId,
+                                "display-name": displayName,
+                                username,
+                                badges,
+                                subscriber: isSubscriber = false,
+                                mod: isModerator = false,
+                            } = tags;
+
+                            const {
+                                broadcaster: isBroadcaster = '0',
+                            } = badges ?? {};
+
                             bus.emit('twitch.insertMessage', {
-                                userId: tags["user-id"],
-                                username: tags["username"],
-                                badges: tags["badges"],
-                                displayName: tags["display-name"],
+                                userId,
+                                username,
+                                badges,
+                                displayName,
                                 renderedText: getMessageHTML(message, { emotes: tags["emotes"] }),
-                                isBroadcaster: tags["badges"]["broadcaster"] === '1',
-                                isSubscriber: tags["subscriber"] === true,
-                                isModerator: tags["mod"] === true,
+                                isBroadcaster: isBroadcaster === '1',
+                                isSubscriber: isSubscriber === true,
+                                isModerator: isModerator === true,
                             });
                         });
 
@@ -254,131 +497,128 @@
                                 msgId,
                             });
                         });
+                        //#endregion twitch chat
+
+
+                        //#region twitch subs
+                        client.on("subscription", (_, username, method, message) => {
+                            bus.emit('twitch.subscription', {
+                                username,
+                                months: 1,
+                                level: method.plan || 1000,
+                                fromUser: username,
+                            });
+                        });
+
+                        client.on("resub", (_, username, months, message, tags, methods) => {
+                            bus.emit('twitch.subscription', {
+                                username,
+                                months,
+                                level: method.plan,
+                                fromUser: username,
+                            })
+                        });
+
+                        client.on("subgift", (_, username, months, recipient, methods) => {
+                            bus.emit('twitch.subscription', {
+                                username: recipient,
+                                months,
+                                level: methods.plan,
+                                fromUser: username,
+                            })
+                        });
+
+                        client.on("submysterygift", (_, username, giftSubCount, methods, tags) => {
+                            bus.emit('twitch.gift', {
+                                username,
+                                level: methods.plan,
+                                giftedAmount: giftSubCount,
+                            });
+                        });
+                        //#endregion twitch subs
+
+                        client.on("redeem", (_, username, reward, tags, message) => {
+                            bus.emit('twitch.redeem', {
+                                username,
+                                reward: rewardtype,
+                                message,
+                            })
+                        });
+
+                        bus.on('twitch.subscription', (data) => {
+                            localStorage.setItem('alerts.latest', {
+                                type: 'subscription',
+                                data: msg,
+                            });
+                            localStorage.setItem('alerts.latestSub', {
+                                username,
+                            });
+                        })
                     }
 
-                    const channelName = section.querySelector('#twitch_channel');
-                    channelName.value = localStorage.getItem("twitch.channel") || 'erodozer';
-
-                    section.querySelector('form').addEventListener('submit', (e) => {
-                        e.preventDefault();
-
-                        const channel = channelName.value;
-                        loadClient(channel);
-                    });
-
-                    section.querySelector('#twitch_disconnect').addEventListener('click', (e) => {
-                        e.preventDefault();
-
-                        closeClient();
-                    });
-
-                    if (channelName.value) {
-                        loadClient(channelName.value);
+                    function closeClient() {
+                        if (client) {
+                            client.disconnect();
+                            connectedChannel.value = '';
+                            client = null;
+                        }
+                        connected.value = false;
                     }
-                });
 
-            </script>
-        </section>
-        <section id="chat">
-            <div class="title">Streamer Chat</div>
-            <form>
-                <fieldset>
-                    <label for="chat_message">
-                        Direct Message
-                    </label>
-                    <input type="text" id="chat_message">
-                    
-                    <button type="submit" id="chat_send" class="button-primary">Send</button>
-                    <button type="reset" id="chat_clear" class="float-right button-outline">Reset Bubbles</button>
-                </fieldset>
-                <fieldset>
-                    <label for="chat_twitch_listen">
-                        <input type="checkbox" id="chat_twitch_listen"/>
-                        Bubbles Listen to Twitch
-                    </label>
-                </fieldset>
-            </form>
+                    const autoconnect = storedRef('twitch.autoconnect', false);
 
-            <script>
-                addEventListener("load", () => {
-                    const section = document.querySelector('#chat');
-                    const direct = section.querySelector('#chat_message');
-                    const send = section.querySelector('#chat_send');
-                    const reset = section.querySelector('#chat_clear');
+                    onMounted(async () => {
+                        if (autoconnect.value === 'true') {
+                            await connectToTwitch();
+                        }
+                    });
+
+                    const scopeOptions = ['moderator:read:chatters', 'moderator:read:followers', 'chat:read', 'chat:edit'];
+                    const scopes = storedRef('twitch.scopes', [], true);
+
+                    const twitchTokenCmd = computed(() => `twitch -u -s "${scopes.value.join(" ")}"`);
+
+                    return {
+                        channel,
+                        botUsername,
+                        token,
+                        refreshToken,
+                        scopeOptions,
+                        scopes,
+                        clientId,
+                        clientSecret,
+                        connected,
+                        connectedChannel,
+                        twitchTokenCmd,
+                        autoconnect,
+                        connectToTwitch,
+                        closeClient,
+                    }
+                }
+            }).mount("#twitch")
+
+            // streamer chat
+            createApp({
+                setup() {
+                    const listen = storedRef("chat.twitchListen", true);
+                    const history = storedRef("chat.history", [], true);
+                    const latestMessage = storedRef("chat.latest", null, true);
+                    const textInput = ref('');
 
                     function sendMessage(message) {
-                        const history = JSON.parse(localStorage.getItem("chat") || "[]")
-                        history.unshift(message);
-                        history.splice(3, 100);
-                    
-                        localStorage.setItem(
-                            "chat", JSON.stringify(history)
-                        );
-                        localStorage.setItem(
-                            "chat.latest", JSON.stringify(message)
-                        );
+                        history.value.unshift(message);
+                        history.value.splice(3, 100);
+                        latestMessage.value = message;
                     }
 
-                    send.addEventListener('click', (e) => {
-                        e.preventDefault();
-
-                        const message = direct.value;
-                        
-                        if (!message) {
-                            return;
-                        }
-
-                        sendMessage({
-                            head: {
-                                type: 'message',
-                                at: Date.now(),
-                            },
-                            body: {
-                                text: message,
-                            }
-                        });
-                        direct.value = '';
+                    bus.on('reset', () => {
+                        history.value = [];
+                        latestMessage.value = {};
+                        listen.value = true;
                     });
 
-                    reset.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        localStorage.setItem(
-                            "chat", JSON.stringify([])
-                        );
-                        localStorage.setItem(
-                            "chat.latest", JSON.stringify({
-                                head: {
-                                    type: 'clear',
-                                    at: Date.now(),
-                                },
-                                body: {},
-                            })
-                        );
-                        direct.value = '';
-                    });
-
-                    function toggleControls(value) {
-                        if (value) {
-                            send.setAttribute('disabled', value);
-                            direct.setAttribute('disabled', value);
-                        } else {
-                            send.removeAttribute('disabled');
-                            direct.removeAttribute('disabled');
-                        }
-                    }
-                    
-                    const twitchControlled = section.querySelector('#chat_twitch_listen');
-                    twitchControlled.checked = localStorage.getItem("chat.twitchListen") || false;
-                    twitchControlled.addEventListener('change', ({ currentTarget: { checked: value }}) => {
-                        localStorage.setItem("chat.twitchListen", value);
-
-                        toggleControls(value);
-                    });
-                    toggleControls(twitchControlled.checked);
-
-                    
                     bus.on('twitch.insertMessage', (msg) => {
-                        if (!twitchControlled.checked) {
+                        if (!listen.value) {
                             return;
                         }
 
@@ -394,80 +634,52 @@
                             })
                         }
                     });
-                });
-            </script>
-        </section>
-        <section id="chatbox">
-            <div class="title">Chatbox</div>
-            <form>
-                <fieldset>
-                    <div>
-                        <label for="chatbox_twitch_channel">
-                            Ignore Users
-                        </label>
-                        <input type="text" id="chatbox_twitch_ignore">
-                    </div>
-                    <button type="submit" id="chatbox_ignore_update" class="button-primary">Update</button>
-                </fieldset>
-                <button type="submit" id="chatbox_debug" class="button-outline">Send Debug Message</button>
-            </form>
 
-            <script>
-                addEventListener("load", () => {
-                    const section = document.querySelector("#chatbox");
-                    const userList = section.querySelector("#chatbox_twitch_ignore")
-                    let ignoreUsers = JSON.parse(localStorage.getItem("twitch.ignore") || "[]");
-                    userList.value = ignoreUsers.join(', ');
-
-                    section.querySelector("#chatbox_ignore_update").addEventListener('click', (e) => {
-                        e.preventDefault();
-
-                        const ignore = userList.value.split(',');
-                        ignoreUsers = ignore.map(u => u.trim());
-                        localStorage.setItem("twitch.ignore", JSON.stringify(ignoreUsers));
-                    });
-
-                    bus.on('twitch.insertMessage', (msg) => {
-                        if (ignoreUsers.includes(msg.username)) {
+                    function send() {
+                        const message = textInput.value;
+                        
+                        if (!message) {
                             return;
                         }
 
-                        localStorage.setItem('chatbox.latest', JSON.stringify({
+                        sendMessage({
                             head: {
                                 type: 'message',
                                 at: Date.now(),
                             },
-                            body: msg
-                        }));
-                    });
+                            body: {
+                                text: message,
+                            }
+                        });
+                        textInput.value = '';
+                    }
 
-                    bus.on('twitch.deleteMessage', ({ msgId }) => {
-                        localStorage.setItem('chatbox.latest', JSON.stringify({
+                    function clear() {
+                        history.value = [];
+                        latestMessage.value = {
                             head: {
-                                type: 'deleteMessage',
+                                type: 'clear',
                                 at: Date.now(),
                             },
-                            body: {
-                                msgId,
-                            }
-                        }));
-                    })
+                            body: {},
+                        };
 
-                    bus.on('twitch.deleteUser', ({ userId }) => {
-                        localStorage.setItem('chatbox.latest', JSON.stringify({
-                            head: {
-                                type: 'deleteUser',
-                                at: Date.now(),
-                            },
-                            body: {
-                                userId,
-                            }
-                        }));
-                    });
+                        textInput.value = '';
+                    }
 
-                    section.querySelector('#chatbox_debug').addEventListener('click', (e) => {
-                        e.preventDefault();
+                    return {
+                        listen,
+                        textInput,
+                        send,
+                        clear,
+                    }
+                }
+            }).mount("#chat");
 
+            // chatbox
+            createApp({
+                setup() {
+                    function sendDebugChat() {
                         bus.emit('twitch.insertMessage', {
                             userId: 'erodozer',
                             badges: [],
@@ -477,9 +689,262 @@
                             isSubscriber: false,
                             isModerator: false,
                         });
+                    }
+
+                    const ignoreUsers = storedRef("twitch.ignore", ["streamelements"], true);
+                    const latestMessage = storedRef("chatbox.latest", {}, true);
+                    
+                    function addUserToIgnore() {
+                        ignoreUsers.value.push('');
+                    }
+
+                    function removeUserToIgnore(idx) {
+                        ignoreUsers.value.splice(idx, 1);
+                    }
+
+                    bus.on('twitch.insertMessage', (msg) => {
+                        if (ignoreUsers.value.includes(msg.username)) {
+                            return;
+                        }
+
+                        latestMessage.value = {
+                            head: {
+                                type: 'message',
+                                at: Date.now(),
+                            },
+                            body: msg
+                        };
                     });
-                });
-            </script>
+
+                    bus.on('twitch.deleteMessage', ({ msgId }) => {
+                        latestMessage.value = {
+                            head: {
+                                type: 'deleteMessage',
+                                at: Date.now(),
+                            },
+                            body: {
+                                msgId,
+                            }
+                        };
+                    })
+
+                    bus.on('twitch.deleteUser', ({ userId }) => {
+                        latestMessage.value = {
+                            head: {
+                                type: 'deleteUser',
+                                at: Date.now(),
+                            },
+                            body: {
+                                userId,
+                            }
+                        };
+                    });
+
+                    const fadeTime = storedRef('chatbox.fadeTime', 0);
+                    const shakeCaps = storedRef('chatbox.shakeOnCaps', false);
+                    const historySize = storedRef('chatbox.historyLimit', 5);
+
+                    bus.on('reset', () => {
+                        ignoreUsers.value = ["streamelements"];
+                        latestMessage.value = {};
+                        fadeTime.value = 0;
+                        shakeCaps.value = false;
+                        historySize.value = 5;
+                    })
+
+                    return {
+                        fadeTime,
+                        shakeCaps,
+                        ignoreUsers,
+                        historySize,
+                        addUserToIgnore,
+                        removeUserToIgnore,
+                        sendDebugChat,
+                    }
+                }
+            }).mount("#chatbox");
+
+            
+            createApp({
+                setup() {
+                    function resetApp() {
+                        bus.emit('reset');
+                        
+                        window.location.reload();
+                    }
+
+                    return {
+                        resetApp,
+                    };
+                }
+            }).mount("#system");
+        </script>
+    </head>
+    <body>
+        <section id="twitch">
+            <div class="title">
+                Twitch Channel
+                <span class="badge float-right" :class="{'connected': connected}">
+                    {{ connected ? 'connected: ' + connectedChannel : 'disconnected' }}
+                </span>
+            </div>
+            <form>
+                <fieldset>
+                    <input type="text" v-model="channel">
+                    <hr>
+                    <h6>Authentication</h6>
+                    <div class="input-field">
+                        <label class="fill">
+                            Bot Id
+                        </label>
+                        <input type="text" v-model="botUsername">
+                    </div>
+                    <div class="input-field">
+                        <label class="fill">
+                            Client Id
+                        </label>
+                        <input type="text" v-model="clientId">
+                    </div>
+                    <div class="input-field">
+                        <label class="fill">
+                            Client Secret
+                        </label>
+                        <input type="password" v-model="clientSecret">
+                    </div>
+                    <div class="input-field">
+                        <label class="fill">
+                            Token
+                        </label>
+                        <input type="text" v-model="token">
+                    </div>
+                    <div class="input-field">
+                        <label class="fill">
+                            Refresh Token
+                        </label>
+                        <input type="text" v-model="refreshToken">
+                    </div>
+                    <details>
+                        <summary>
+                            Scopes
+                        </summary>
+                        <div>
+                            <label v-for="key in scopeOptions" :key="key">
+                                <input type="checkbox" v-model="scopes" :value="key">
+                                {{key}}
+                            </label>
+                            <textarea :value="twitchTokenCmd" wrap="off" readonly></textarea>
+                        </div>
+                    </details>
+                    <hr>
+                    <button type="submit" class="button-primary" @click.prevent="connectToTwitch">Reconnect</button>
+                    <button type="submit" class="button-outline float-right" @click.prevent="closeClient">Disconnect</button>
+                    <label>
+                        <input type="checkbox" v-model="autoconnect">
+                        Autoconnect on start-up
+                    </label>
+                </fieldset>
+            </form>
+        </section>
+        <section id="chat">
+            <div class="title">
+                Streamer Chat
+                <label class="float-right">
+                    <input type="checkbox" v-model="listen"/>
+                    Listen to Twitch
+                </label>
+            </div>
+            <form>
+                <fieldset>
+                    <label for="chat_message">
+                        Direct Message
+                    </label>
+                    <input type="text" v-model="textInput">
+                    
+                    <div class="float-right input-field">
+                            <button type="reset" class="button-outline" @click.prevent="clear">Reset Bubbles</button>
+                            <button type="submit" class="button-primary" @click.prevent="send">
+                                Send
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-send-fill" viewBox="0 0 16 16" style="margin-left: 12px">
+                                    <path d="M15.964.686a.5.5 0 0 0-.65-.65L.767 5.855H.766l-.452.18a.5.5 0 0 0-.082.887l.41.26.001.002 4.995 3.178 3.178 4.995.002.002.26.41a.5.5 0 0 0 .886-.083l6-15Zm-1.833 1.89L6.637 10.07l-.215-.338a.5.5 0 0 0-.154-.154l-.338-.215 7.494-7.494 1.178-.471-.47 1.178Z"/>
+                                </svg>
+                            </button>
+                        </div>
+                </fieldset>
+            </form>
+        </section>
+        <section id="chatbox">
+            <div class="title">Chatbox</div>
+            <form>
+                <fieldset>
+                    <div>
+                        <label for="chatbox_twitch_channel">
+                            Ignore Users
+                        </label>
+                        <div v-for="(user, idx) in ignoreUsers" class="input-field" :key="idx">
+                            <input type="text" :value="user" @input="ignoreUsers[idx] = $event.target.value">
+                            <button type="submit" @click.prevent="removeUserToIgnore(idx)" class="button-danger">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash3" viewBox="0 0 16 16">
+                                    <path d="M6.5 1h3a.5.5 0 0 1 .5.5v1H6v-1a.5.5 0 0 1 .5-.5ZM11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3A1.5 1.5 0 0 0 5 1.5v1H2.506a.58.58 0 0 0-.01 0H1.5a.5.5 0 0 0 0 1h.538l.853 10.66A2 2 0 0 0 4.885 16h6.23a2 2 0 0 0 1.994-1.84l.853-10.66h.538a.5.5 0 0 0 0-1h-.995a.59.59 0 0 0-.01 0H11Zm1.958 1-.846 10.58a1 1 0 0 1-.997.92h-6.23a1 1 0 0 1-.997-.92L3.042 3.5h9.916Zm-7.487 1a.5.5 0 0 1 .528.47l.5 8.5a.5.5 0 0 1-.998.06L5 5.03a.5.5 0 0 1 .47-.53Zm5.058 0a.5.5 0 0 1 .47.53l-.5 8.5a.5.5 0 1 1-.998-.06l.5-8.5a.5.5 0 0 1 .528-.47ZM8 4.5a.5.5 0 0 1 .5.5v8.5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5Z"/>
+                                  </svg>
+                            </button>
+                        </div>
+                        <div>
+                            <button type="submit" @click.prevent="addUserToIgnore" class="button-primary">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-lg" viewBox="0 0 16 16">
+                                    <path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2Z"/>
+                                  </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="input-field">
+                        <label class="fill">
+                            Fade (sec)
+                        </label>
+                        <input type="number" min="0" max="30" value="0" step="0.1" v-model="fadeTime">
+                    </div>
+                    <div class="input-field">
+                        <label class="fill">
+                            Max History
+                        </label>
+                        <input type="number" min="1" max="10" value="1" step="1" v-model="historySize">
+                    </div>
+                    <label>
+                        <input type="checkbox" v-model="shakeCaps">
+                        Shake on ALL CAPS
+                    </label>
+                </fieldset>
+            </form>
+            <hr>
+            <fieldset>
+                <button type="submit" id="chatbox_debug" class="button-outline" @click.prevent="sendDebugChat">Send Debug Message</button>
+            </fieldset>
+        </section>
+        <section id="alerts">
+            <div class="title">Twitch Alerts</div>
+            <label>
+                <input type="checkbox" v-model="alertFollow">
+                New Follow
+            </label>
+            <label>
+                <input type="checkbox" v-model="alertSubs">
+                New/Renewed Subs
+            </label>
+            <label>
+                <input type="checkbox" v-model="alertGifts">
+                Gift Subs
+            </label>
+            <label>
+                <input type="checkbox" v-model="alertBits">
+                Bits
+            </label>
+            <label>
+                <input type="checkbox" v-model="alertRaid">
+                Raids
+            </label>
+        </section>
+        <section id="system">
+            <div class="title">System</div>
+            <button @click.prevent="resetApp" class="button-danger">Reset Everything</button>
         </section>
     </body>
 </html>

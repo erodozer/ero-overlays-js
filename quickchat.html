@@ -136,7 +136,7 @@
                 const audio = document.querySelector("audio");
 
                 const state = {
-                    messages: JSON.parse(localStorage.getItem("chat") || "[]"),
+                    messages: JSON.parse(localStorage.getItem("chat.history") || "[]"),
 
                     clear() {
                         state.messages = [];
@@ -178,8 +178,6 @@
                     },
 
                     clear() {
-                        localStorage.setItem("chat", "[]");
-                        localStorage.setItem("chat.latest", "");
                         state.messages = [];
                         chat.innerHTML = '';
                     }

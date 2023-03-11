@@ -3,7 +3,8 @@
 <head>
     <style>
         :root {
-            --fontSize: 16px;
+            --fontSize: 20px;
+            --headerSize: 18px;
             --fontFamily: 'FOT-RodinWanpaku Pro', serif;
             --panelHeaderColor: #3ec120;
             --broadcasterHeaderColor: #d55999;
@@ -80,15 +81,15 @@
             display: block;
             min-width: 64px;
 
-            font-size: var(--fontSize);
-            border-radius: calc(2 * var(--fontSize));
+            font-size: var(--headerSize);
+            border-radius: calc(2 * var(--headerSize));
             color: white;
-            transform: rotate(4deg) translate(3px, -12px);
-            padding: var(--fontSize) 24px;
+            transform: rotate(4deg);
+            padding: calc(var(--headerSize) * .7) 24px;
             text-align: center;
             font-weight: bold;
             box-sizing: border-box;
-            top: calc(-1 * var(--fontSize));
+            top: calc(-1.2 * var(--headerSize));
             z-index: 1;
         }
 
@@ -137,7 +138,7 @@
             margin-right: 8px;
         }
 
-        .message .text {
+        .message > .text {
             position: relative;
 
             font-size: var(--fontSize);
@@ -145,20 +146,20 @@
 
             background: var(--messageBackgroundColor);
 
-            padding: 16px;
-            padding-top: calc(var(--fontSize) + 16px);
+            padding: 8px 16px;
+            padding-top: calc(var(--headerSize) * 1);
             margin: 0;
             border-radius: 12px;
 
             color: var(--messageFontColor);
             text-align: right;
             float: right;
-            min-width: 120px;
+            min-width: 100px;
 
             box-shadow: 8px 8px 0px var(--shadowColor);
         }
 
-        .message img {
+        .message > .text > img {
             height: 1.4em;
         }
     </style>
@@ -222,13 +223,12 @@
                 e.setAttribute('data-msgid', msg.msgId);
                 e.innerHTML = `
                         <span class="username">
-                                ${msg.displayName}
-                            </span>
-                            <p class="text">
-                                ${msg.renderedText}
-                                <br/>
-                            </p>
-                        </div>
+                            ${msg.displayName}
+                        </span>
+                        <p class="text">
+                            ${msg.renderedText}
+                            <br/>
+                        </p>
                     `;
                 return e;
             }
