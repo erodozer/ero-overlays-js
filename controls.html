@@ -223,8 +223,16 @@
             let extendedEmotes = [];
 
             bus.on('twitch.joinChannel', (msg) => {
-                get7tvEmotes(msg.channelId);
+                Promise.all([
+                    get7tvEmotes(msg.channelId),
+                    getBttvEmotes(msg.channelId)
+                ]).then(
+                    ([emotes7tv, emotesbttv]) => {
+                        extendedEmotes = [].concat(...emotes7tv, ...emotesbttv);
+                    }
+                );
 
+                /* API does not return latest subscription or any way to determine ordering
                 
                 twitch(`channels/followers?broadcaster_id=${msg.channelId}&first=1`)
                     .then((res) => {
@@ -240,7 +248,6 @@
                             followedAt: follower.followed_at
                         });
                     })
-                /* API does not return latest subscription or any way to determine ordering
                 twitch(`subscriptions?broadcaster_id=${msg.channelId}&first=1&direction=asc`)
                     .then((res) => {
                         if (res.data.total == 0) {
@@ -256,12 +263,88 @@
             });
 
             async function get7tvEmotes(channelId) {
-                const req = await fetch(`https://7tv.io/v3/users/twitch/${channelId}`);
-                const body = await req.json();
+                try {
+                    const req = await fetch(`https://7tv.io/v3/users/twitch/${channelId}`);
+                    const body = await req.json();
 
-                const emotes = body?.emote_set?.emotes || [];
+                    const emotes = body?.emote_set?.emotes || [];
 
-                extendedEmotes = emotes;
+                    return emotes.reduce(
+                        (acc, e) => {
+                            const {
+                                name,
+                                data: {
+                                    host: {
+                                        url,
+                                        files,
+                                    },
+                                },
+                            } = emote;
+                            const image = files.find((f) => f.static_name.includes('2x') && f.format === 'WEBP');
+
+                            if (image) {
+                                acc.push({
+                                    code: name,
+                                    url: `https:${url}/${image.name}`,
+                                    dimensions: {
+                                        width: image.width,
+                                        height: image.height,
+                                    },
+                                    srcset: [
+                                        `https:${url}/${image.name} 1x`
+                                    ]
+                                });
+                                return acc;
+                            }
+
+                            return acc;
+                        },
+                        []
+                    );
+                } catch {
+                    return [];
+                }   
+            }
+
+            async function getBttvEmotes(channelId) {
+                try {
+                    const req = await fetch(`https://api.betterttv.net/3/cached/users/twitch/${channelId}`, {
+                        "headers": {
+                            "accept": "*/*",
+                            "accept-language": "en-US,en;q=0.9",
+                            "cache-control": "no-cache",
+                            "pragma": "no-cache",
+                        },
+                        "body": null,
+                        "method": "GET"
+                    });
+                    const body = await req.json();
+
+                    const {
+                        channelEmotes,
+                        sharedEmotes,
+                    } = body;
+
+                    const emotes = [].concat(...channelEmotes, ...sharedEmotes);
+
+                    return emotes.reduce(
+                        (acc, e) => {
+                            acc.push({
+                                code: e.code,
+                                url: `https://cdn.betterttv.net/emote/${e.id}/1x`,
+                                srcset: [
+                                    `https://cdn.betterttv.net/emote/${e.id}/1x 1x`,
+                                    `https://cdn.betterttv.net/emote/${e.id}/2x 2x`,
+                                    `https://cdn.betterttv.net/emote/${e.id}/3x 4x`,
+                                ],
+                            })
+                            return acc;
+                        },
+                        []
+                    );
+                } catch {
+                    return [];
+                }
             }
 
 
@@ -303,23 +386,15 @@
                 return extendedEmotes.reduce(
                     (acc, emote) => {
                         const {
-                            name,
-                            data: {
-                                host: {
-                                    url,
-                                    files,
-                                },
-                            },
+                            code,
+                            url,
+                            dimensions,
+                            srcset,
                         } = emote;
-                        const image = files.find((f) => f.static_name.includes('2x') && f.format === 'WEBP');
-
-                        if (!image) {
-                            return acc;
-                        }
-
+                        
                         return acc.replaceAll(
-                            name,
-                            `<img src="https:${url}/${image.name}" height="${image.height}">`,
+                            code,
+                            `<img src="${url}" srcset="${srcset.join(" ")}" ${dimensions ? `height=${dimensions.height}` : ``}>`,
                         );
                     },
                     messageHTML
@@ -576,7 +651,7 @@
                     const scopeOptions = ['moderator:read:chatters', 'moderator:read:followers', 'chat:read', 'chat:edit'];
                     const scopes = storedRef('twitch.scopes', [], true);
 
-                    const twitchTokenCmd = computed(() => `twitch -u -s "${scopes.value.join(" ")}"`);
+                    const twitchTokenCmd = computed(() => `twitch token -u -s "${scopes.value.join(" ")}"`);
 
                     return {
                         channel,
