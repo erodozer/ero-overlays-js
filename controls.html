@@ -279,7 +279,7 @@
                                         files,
                                     },
                                 },
-                            } = emote;
+                            } = e;
                             const image = files.find((f) => f.static_name.includes('2x') && f.format === 'WEBP');
 
                             if (image) {
@@ -301,7 +301,8 @@
                         },
                         []
                     );
-                } catch {
+                } catch (err) {
+                    console.error(err);
                     return [];
                 }   
             }
@@ -342,7 +343,8 @@
                         },
                         []
                     );
-                } catch {
+                } catch (err) {
+                    console.error(err);
                     return [];
                 }
             }
