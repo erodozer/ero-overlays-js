@@ -41,7 +41,7 @@
         .message {
             position: relative;
             display: block;
-            margin-top: 48px;
+            margin-top: 64px;
             width: 80%;
             align-self: flex-end;
             animation: new-message .2s ease-out 0s, expire-message .15s ease-out var(--stickAround);
@@ -79,26 +79,32 @@
 
         .message .username {
             position: absolute;
-            display: block;
+            display: inline-block;
             min-width: 64px;
 
             font-size: var(--headerSize);
             border-radius: calc(2 * var(--headerSize));
             color: white;
-            padding: calc(var(--headerSize) * .3) 24px;
-            padding-left: 96px;
+            padding-right: 24px;
+            padding-left: 64px;
             text-align: center;
             font-weight: bold;
             box-sizing: border-box;
             top: calc(-1.2 * var(--headerSize));
             z-index: 1;
-        
+            
             right: 0;
 
             /* transform: rotate(3deg) translate(5px, calc(-1 * var(--fontSize))); */
             transform: translate(5px, calc(-.8 * var(--fontSize)));
 
             background: var(--panelHeaderColor);
+        }
+
+        .message .username > span {
+            display: inline-block;
+            padding: calc(var(--headerSize) * .3) 14px;
+            vertical-align: middle;
         }
 
         .message[data-important="true"] .username {
@@ -144,6 +150,7 @@
 
         .message[data-important="true"] .text {
             float: left;
+            text-align: left;
         }
 
         .message .text > img {
@@ -159,6 +166,21 @@
             position: absolute;
             left: -14px;
             bottom: 0px;
+        }
+
+        .message .pronoun {
+            display: block;
+            float: right;
+            font-size: var(--headerSize);
+            border-radius: calc(2 * var(--headerSize));
+            background: white;
+            color: black;
+            padding: calc(var(--headerSize) * .3) 24px;
+            margin-right: -24px;
+            margin-left: 24px;
+            text-align: center;
+            font-weight: bold;
+            box-sizing: border-box;
         }
     </style>
 </head>
@@ -221,10 +243,11 @@
                 e.setAttribute('data-msgid', msg.msgId);
                 e.innerHTML = `
                     <div style="transform: translateX(${Math.random() * 19 * (msg.isBroadcaster ? 1 : -1)}px) rotate(${(Math.random() * 3) - 1.5}deg)">
-                        <span class="username">
+                        <div class="username">
                             <img src=${msg.profileImage} class="avatar" />
-                            ${msg.displayName}
-                        </span>
+                            <span>${msg.displayName}</span>
+                            ${msg.pronoun ? '<div class="pronoun">(' + msg.pronoun + ')</div>' : ''}
+                        </div>
                         <p class="text">
                             ${msg.renderedText}
                             <br/>
