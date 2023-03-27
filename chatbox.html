@@ -3,7 +3,7 @@
 <head>
     <style>
         :root {
-            --fontSize: 20px;
+            --fontSize: 22px;
             --headerSize: 18px;
             --fontFamily: 'FOT-RodinWanpaku Pro', serif;
             --panelHeaderColor: #3ec120;
@@ -11,7 +11,7 @@
             --messageBackgroundColor: #fdf9e0;
             --shadowColor: rgba(28,28,28,0.15);
             --messageFontColor: #7f7051;
-            --stickAround: 8s;
+            --stickAround: 60s;
         }
 
         html,
@@ -44,6 +44,13 @@
             margin-top: 48px;
             width: 80%;
             align-self: flex-end;
+            animation: new-message .2s ease-out 0s, expire-message .15s ease-out var(--stickAround);
+            animation-fill-mode: forwards;
+            transform-origin: bottom right;
+        }
+
+        .message[data-important="true"] {
+            align-self: flex-start;
         }
 
         @keyframes new-message {
@@ -70,12 +77,6 @@
             }
         }
 
-        .message {
-            animation: new-message .2s ease-out 0s, expire-message .15s ease-out var(--stickAround);
-            animation-fill-mode: forwards;
-            transform-origin: bottom right;
-        }
-
         .message .username {
             position: absolute;
             display: block;
@@ -84,44 +85,26 @@
             font-size: var(--headerSize);
             border-radius: calc(2 * var(--headerSize));
             color: white;
-            transform: rotate(4deg);
-            padding: calc(var(--headerSize) * .7) 24px;
+            padding: calc(var(--headerSize) * .3) 24px;
+            padding-left: 96px;
             text-align: center;
             font-weight: bold;
             box-sizing: border-box;
             top: calc(-1.2 * var(--headerSize));
             z-index: 1;
-        }
-
-        /* .message[data-important="false"] .username */
-        .message .username {
+        
             right: 0;
 
-            transform: rotate(3deg) translate(5px, calc(-1 * var(--fontSize)));
+            /* transform: rotate(3deg) translate(5px, calc(-1 * var(--fontSize))); */
+            transform: translate(5px, calc(-.8 * var(--fontSize)));
 
             background: var(--panelHeaderColor);
         }
 
         .message[data-important="true"] .username {
-
-            /*
-            left: 0;
-            transform: rotate(-3deg) translate(-5px, -{{fontSize}}px);
-            */
             background: var(--broadcasterHeaderColor);
+            right: unset;
         }
-
-        /*
-            .message[data-important="true"] .text {
-            text-align: left;
-            float: left;
-            }
-
-            .message[data-important="true"] {
-            align-self: flex-start;
-            }
-            */
-
 
         .message .badge {
             position: absolute;
@@ -138,11 +121,11 @@
             margin-right: 8px;
         }
 
-        .message > .text {
+        .message .text {
             position: relative;
 
             font-size: var(--fontSize);
-            display: inline-block;
+            display: block;
 
             background: var(--messageBackgroundColor);
 
@@ -159,8 +142,23 @@
             box-shadow: 8px 8px 0px var(--shadowColor);
         }
 
-        .message > .text > img {
+        .message[data-important="true"] .text {
+            float: left;
+        }
+
+        .message .text > img {
             height: 1.4em;
+        }
+
+        .message .avatar {
+            width: 78px;
+            height: 78px;
+            border: 0px solid transparent;
+            border-radius: 39px;
+            overflow: hidden;
+            position: absolute;
+            left: -14px;
+            bottom: 0px;
         }
     </style>
 </head>
@@ -222,13 +220,16 @@
                 e.setAttribute('data-userid', msg.userId);
                 e.setAttribute('data-msgid', msg.msgId);
                 e.innerHTML = `
+                    <div style="transform: translateX(${Math.random() * 19 * (msg.isBroadcaster ? 1 : -1)}px) rotate(${(Math.random() * 3) - 1.5}deg)">
                         <span class="username">
+                            <img src=${msg.profileImage} class="avatar" />
                             ${msg.displayName}
                         </span>
                         <p class="text">
                             ${msg.renderedText}
                             <br/>
                         </p>
+                    </div>
                     `;
                 return e;
             }

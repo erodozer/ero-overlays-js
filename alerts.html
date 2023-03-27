@@ -1,0 +1,66 @@
+<html>
+    <head>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.3/gsap.min.js"></script>
+        <script type="importmap">
+            {
+                "imports": {
+                    "vue": "https://unpkg.com/vue@3/dist/vue.esm-browser.js"
+                }
+            }
+        </script>
+        
+        <!-- twitch controls -->
+        <script type="module">
+            import { createApp, ref, watch, onMounted } from 'vue';
+
+            createApp({
+                setup() {
+
+                }
+            });
+        </script>
+    </head>
+    <body>
+        <template v-if="latestEvent.type == 'subscribe'">
+            
+        </template>
+        <template v-if="latestEvent.type == 'follow'">
+            
+        </template>
+        <!-- configuration -->
+        <script>
+            const evtQueue = [];
+            let speech = new SpeechSynthesisUtterance();
+            speech.lang = "en";
+            console.log(window.speechSynthesis.getVoices());
+            speech.voice = window.speechSynthesis.getVoices()[0];
+
+            function ttsSay(message) {
+                speech.text = message;
+
+                return new Promise((resolve) => {
+                    speech.addEventListener("end", resolve, { once: true });
+                    window.speechSynthesis.speak(speech);
+                });
+            }
+
+            client.on('cheer', (_, userstate, message) => {
+                const {
+                    [""]: userId,
+                    bits,
+                } = userstate;
+
+                if (bits > 100) {
+                    ttsSay(message);
+                }
+
+                speech.text = message;
+
+                new Promise((resolve) => {
+                    speech.addEventListener("end", resolve, { once: true });
+                    window.speechSynthesis.speak(speech);
+                });
+            });
+        </script>
+    </body>
+</html>

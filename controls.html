@@ -322,8 +322,8 @@
                     const body = await req.json();
 
                     const {
-                        channelEmotes,
-                        sharedEmotes,
+                        channelEmotes = [],
+                        sharedEmotes = [],
                     } = body;
 
                     const emotes = [].concat(...channelEmotes, ...sharedEmotes);
@@ -463,6 +463,7 @@
                     const refreshToken = storedRef("twitch.refreshToken");
                     const clientId = storedRef("twitch.clientId");
                     const clientSecret = storedRef("twitch.clientSecret");
+                    const userCache = storedRef("twitch.userCache", {}, true);
                     const channelId = ref('0');
                     const connectedChannel = ref('');
                     
@@ -526,7 +527,7 @@
                         });
 
                         //#region twitch chat
-                        client.on('chat', (channel, tags, message, self) => {
+                        client.on('chat', async (channel, tags, message, self) => {
                             // ignore commands
                             if (['!', '/'].includes(message[0])) {
                                 return;
@@ -545,9 +546,26 @@
                                 broadcaster: isBroadcaster = '0',
                             } = badges ?? {};
 
+                            let userData = userCache.value[userId];
+
+                            if (!userData || Date.now() > userData.expiresAt) {
+                                const {
+                                    data: users = []
+                                } = await twitch(`users?id=${userId}`);
+                                const foundData = users.find(u => u.id === userId);
+                                if (foundData) {
+                                    userData = {
+                                        ...foundData,
+                                        expiresAt: Date.now() + 3_600_000, // 1hr
+                                    };
+                                    userCache.value[userId] = userData;
+                                }
+                            }
+
                             bus.emit('twitch.insertMessage', {
                                 userId,
                                 username,
+                                profileImage: userData.profile_image_url,
                                 badges,
                                 displayName,
                                 renderedText: getMessageHTML(message, { emotes: tags["emotes"] }),
@@ -682,6 +700,8 @@
                     const latestMessage = storedRef("chat.latest", null, true);
                     const textInput = ref('');
 
+                    listen.value = listen.value === "true";
+
                     function sendMessage(message) {
                         history.value.unshift(message);
                         history.value.splice(3, 100);
@@ -758,11 +778,11 @@
                 setup() {
                     function sendDebugChat() {
                         bus.emit('twitch.insertMessage', {
-                            userId: 'erodozer',
+                            userId: 'wubbo',
                             badges: [],
-                            username: 'erodozer',
+                            username: 'wubbo',
                             renderedText: "test <img src=\"https://static-cdn.jtvnw.net/emoticons/v1/emotesv2_f13af0cf5d094710b02665e378393f07/3.0\">",
-                            isBroadcaster: true,
+                            isBroadcaster: false,
                             isSubscriber: false,
                             isModerator: false,
                         });

@@ -6,7 +6,12 @@
         <style>
             @font-face {
                 font-family: 'Katamari';
-                src: url('KatamariKing.ttf');
+                src: url('fonts/KatamariKing.ttf');
+            }
+
+            @font-face {
+                font-family: 'Pixel';
+                src: url('fonts/pixel/ark-pixel-12px-monospaced-latin.woff2');
             }
 
             :root {
@@ -69,18 +74,12 @@
 
             .message {
                 padding: 16px 48px;
-                background: #120e47ee;
                 display: block;
-                color: white;
-                font-family: var(--fontFamily);
-                font-size: var(--fontSize);
                 position: fixed;
                 bottom: 0;
                 margin: 0 auto;
                 max-width: calc(100% - 100px);
                 text-align: center;
-                border-radius: 18px;
-                border: 0px solid transparent;
                 z-index: 2;
                 box-sizing: border-box;
                 animation: fade-in .2s ease-in-out forwards;
@@ -94,6 +93,20 @@
                 height: 1.4em;
             }
 
+            .message .placeholder {
+                position: relative;
+                color: transparent;
+            }
+
+            .message .typing {
+                position: absolute;
+                color: white;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+            }
+
             .message:nth-of-type(2) {
                 animation: rotate-out .2s ease-in-out forwards;
             }
@@ -102,31 +115,28 @@
                 animation: goodbye .2s ease-in-out forwards;
             }
 
-            input[type="text"] {
-                border: 4px solid black;
-                padding: 16px;
-                font-size: 32px;
-                width: 100%;
-                border-radius: 8px;
-            }
-
-            button {
-                padding: 16px 80px;
-                font-size: 24px;
-                margin: 8px 0;
-                color: white;
-                border-radius: 8px;
+            body[theme=katamari] .message {
+                font-family: var(--fontFamily);
+                font-size: var(--fontSize);
+                padding: 16px 48px;
+                background: #120e47ee;
+                border-radius: 18px;
                 border: 0px solid transparent;
-                display: inline-block;
-                font-size: 16px;;
             }
 
-            button[type="submit"] {
-                background-color: mediumseagreen;
+            body[theme=lagoon] .message {
+                font-family: 'pixel', monospace;
+                font-size: 32px;
+                padding: 16px 16px;
+                background: linear-gradient(to bottom, #002031fa, #107051fa);
+                border-radius: 4px;
+                border: 5px solid grey;
+                box-shadow: 4px 4px black;
             }
 
-            button[type="reset"] {
-                background-color: #e66464;
+            body[theme=lagoon] .typing {
+                text-shadow: 4px 0px black;
+                text-align: left;
             }
         </style>
         <script>
@@ -149,13 +159,23 @@
 
                         const e = document.createElement('div');
                         e.classList.add('message');
-                        e.innerHTML = ' ';
+
+                        const placeholder = document.createElement('div');
+                        placeholder.textContent = message;
+                        placeholder.classList.add('placeholder')
+
+                        const typing = document.createElement('div');
+                        typing.innerHTML = ' ';
+                        typing.classList.add('typing');
+                        
+                        placeholder.appendChild(typing);
+                        e.appendChild(placeholder);
                         chat.prepend(e)
 
                         const scrubbed = message.replace(/<.*>/, '');  // remove html tags
 
-                        gsap.to(e, {
-                            duration: 0.08 * scrubbed.length,
+                        gsap.to(typing, {
+                            duration: 0.03 * scrubbed.length,
                             delay: 0,
                             text: {
                                 value: scrubbed,
@@ -168,7 +188,7 @@
                             onComplete: () => {
                                 audio.pause();
                                 audio.currentTime = 0;
-                                e.innerHTML = message;
+                                typing.innerHTML = message;
                             }
                         });
 
@@ -183,10 +203,14 @@
                     }
                 };
 
-
                 chat.innerHTML = state.messages.map(e => `
                 <div class="message">
-                    ${e.body.text}
+                    <div class="placeholder">
+                        ${e.body.text}
+                        <div class="typing">
+                            ${e.body.text}
+                        </div>
+                    </div>
                 </div>
                 `).join()
 
@@ -208,11 +232,16 @@
                         state.addMessage(body.text);
                     }
                 });
+
+                const params = new URLSearchParams(document.location.search);
+                const theme = params.get('theme') ?? 'katamari';
+                document.body.setAttribute('theme', theme);
+                document.querySelector('#typing').setAttribute("src", `sounds/${theme}/talk.wav`);
             });
         </script>
     </head>
     <body>
-        <audio id="typing" src="talk.wav" loop></audio>
+        <audio id="typing" loop></audio>
         <div id="chat">
         </div>
     </body>
