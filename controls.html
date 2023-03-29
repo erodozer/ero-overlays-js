@@ -485,9 +485,11 @@
                             }
 
                             const usersProunouns = await fetch(`https://pronouns.alejo.io/api/users/${foundData.login}`).then(r => r.json());
-                            const {
-                                pronoun_id,
-                            } = usersProunouns[0];
+                            const [
+                                {
+                                    pronoun_id = null,
+                                } = {},
+                            ] = usersProunouns;
 
                             userData = {
                                 ...foundData,
@@ -543,7 +545,10 @@
                         });
 
                         console.log('beginning connection to twitch chat')
-                        client.connect();
+                        client.connect()
+                            .catch(err => {
+                                token.value = '';
+                            });
 
                         client.on('connected', () => {
                             console.log('client is connected');
